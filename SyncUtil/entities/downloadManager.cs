@@ -66,7 +66,7 @@ namespace SyncUtil.entities
                 try
                 {
                     string localfolder = Properties.Settings.Default.path.ToString();
-                     System.Diagnostics.Debug.WriteLine(localfolder + "\\" + _file.dir + "\\" + _file.filename);
+                     System.Diagnostics.Debug.WriteLine("downloading ??? "+localfolder + "\\" + _file.dir + "\\" + _file.filename);
                     Directory.CreateDirectory(Path.GetDirectoryName(localfolder + "\\" + _file.dir + "\\" + _file.filetempname));
                     outFile = new FileStream(localfolder + "\\" + _file.dir + "\\" + _file.filetempname, FileMode.OpenOrCreate);
 

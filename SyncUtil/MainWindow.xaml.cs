@@ -187,7 +187,7 @@ namespace SyncUtil
                     LIVEFILES = GetlivefilesData();
        
 
-                        // MessageBox.Show("processfile" + localfolder + "\\" + item.dir + "\\" + item.filetempname);
+                        MessageBox.Show("processfile" + localfolder + "\\" + item.dir + "\\" + item.filetempname +"   " + LIVEFILES.ContainsKey(item.filemd5.Trim()));
                         if (File.Exists(localfolder + "\\" + item.dir+"\\" + item.filetempname) && LIVEFILES.ContainsKey(item.filemd5.Trim()))
                     {
                         
@@ -206,9 +206,16 @@ namespace SyncUtil
                         dwm.onFileDownloadInterrupted += Dwm_onFileDownloadInterrupted;
                         dwm.beginDownload(item);
                     }
+                    else
+                    {
+                      //  MessageBox.Show("createdownload");
+                        DOWNLOADQUEUE.Remove(item);
+                        createdownloadqueue();
+                    }
                 }
                 else
                 {
+                 // MessageBox.Show("createdownload");
                     createdownloadqueue();
                 }
             }
@@ -241,7 +248,7 @@ namespace SyncUtil
             // get local file dictionary.
 
             try
-            {
+           {
                 List<myfile> currentfiles = new List<myfile>();
 
                 List<String> fileEntries = DirSearch(localfolder);
@@ -283,7 +290,7 @@ namespace SyncUtil
                 LIVEFILES = GetlivefilesData();
                 // check both dictionary and manage downloadqueue.
 
-                foreach (String k in LOCALFILES.Keys)
+                foreach (String k in LOCALFILES.Keys.ToList())
                 {
 
                     var i = LIVEFILES.ContainsKey(k.Trim());
@@ -298,8 +305,8 @@ namespace SyncUtil
                             File.Delete(localitem.dir + "\\" + localitem.name);
                             showNotificationMessage(localitem.name + "removing...", 0);
                         }
-                         LOCALFILES.Remove(k.Trim());
-                         LOCALFILES.Clear();
+                       //  LOCALFILES.Remove(k.Trim());
+                       //  LOCALFILES.Clear();
 
 
                     }
@@ -319,20 +326,26 @@ namespace SyncUtil
                         mf.name = item.name;
                         mf.size = item.size;
                         mf.md5 = item.md5;
-                        LOCALFILES.Add(mf.md5, mf);
+                        if (!LOCALFILES.ContainsKey(mf.md5))
+                        {
+
+                            LOCALFILES.Add(mf.md5, mf);
+                        }
+                       // LOCALFILES.Add(mf.md5, mf);
 
                         DOWNLOADQUEUE.Add(df);
                     }
                     else
                     {
                         //TODO:delete the unwanted .partfiles
-                       // MessageBox.Show(k+"");
-                      //  var localitem = LOCALFILES[k];
-                       
-                      //  if (File.Exists(localfolder + "\\" + localitem.dir+"\\"+k + ".part"))
-                      //  {
-                      //      File.Delete(k + ".part");
-                      //  }
+                     
+                      var localFileList = DirSearch(localfolder);
+                      var match = localFileList.FirstOrDefault(stringToCheck => stringToCheck.Contains(k));
+                                             
+                         if (File.Exists(match))
+                         {
+                              File.Delete(match);
+                          }
                         // deletefile(k + ".part");
                     }
                     DOWNLOADPENDING.Remove(k);
@@ -360,9 +373,9 @@ namespace SyncUtil
                 }
                 dispatcherTimer.Start();
 
-            }
+           }
             catch (Exception ex)
-            {
+           {
                 Reset_On_Error(ex);
          
             }
@@ -378,13 +391,7 @@ namespace SyncUtil
 
                 string livedata = Getlivefiles();
                 lfs = JsonConvert.DeserializeObject<List<myfile>>(livedata).ToList<myfile>();
-            }
-            catch (Exception ex)
-            {
-                Reset_On_Error(ex);
-
-            }
-
+           
 
             LIVEFILES = new Dictionary<string, myfile>();
 
@@ -400,15 +407,30 @@ namespace SyncUtil
 
 
             }
+            }
+            catch (Exception ex)
+            {
+                Reset_On_Error(ex);
+
+            }
+
 
             return LIVEFILES;
         }
 
         private void Reset_On_Error(Exception ex)
         {
-            DOWNLOADQUEUE.Clear();
-            LOCALFILES.Clear();
-            LIVEFILES.Clear();
+            try
+            {
+
+
+            }
+            catch (Exception e)
+            {
+                DOWNLOADQUEUE.Clear();
+                LOCALFILES.Clear();
+                LIVEFILES.Clear();
+            }
             LogError(ex);
             dispatcherTimer.Start();
         }
@@ -440,7 +462,7 @@ namespace SyncUtil
                 }
                 return result;
             }
-            catch (WebException ex)
+            catch (Exception ex)
             {
                 Reset_On_Error(ex);
                
