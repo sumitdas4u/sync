@@ -2,28 +2,16 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using Hardcodet.Wpf.TaskbarNotification;
 using System.IO;
-using System.Threading;
-using System.Net.Http;
 using SyncUtil.entities;
 using Newtonsoft.Json;
 using System.Net;
-using System.Security.Cryptography;
+
 using System.Windows.Threading;
-using SyncUtil.healpers;
 using System.Diagnostics;
 using Microsoft.Win32;
+using System.Security.Cryptography;
 
 namespace SyncUtil
 {
@@ -70,7 +58,7 @@ namespace SyncUtil
         {
             InitializeComponent();
             RegisterInStartup(true);
-
+           
             this.WindowState = WindowState.Minimized;
             this.Visibility = Visibility.Hidden;
 
@@ -88,7 +76,7 @@ namespace SyncUtil
 
             filecontroll.FileName.Text = "waiting for file.";
             filecontroll.DownloadProgress.Value = 0;
-            hashAlgo = new MD5CryptoServiceProvider();
+          
             checkfolder();
             processfile();
             dispatcherTimer.Start();
@@ -159,7 +147,7 @@ namespace SyncUtil
                 Dispatcher.Invoke(new fileDownloadEventHandler(Dwm_onFileDownloadStart), new object[] { Sender, args });
                 return;
             }
-            filecontroll.FileName.Text = args.downloadFile.filename;
+            filecontroll.FileName.Text = "Download Start "+args.downloadFile.filename;
         }
 
         private void timer_CheckLiveFiles(object sender, EventArgs e)
@@ -190,16 +178,24 @@ namespace SyncUtil
             {
                 if (DOWNLOADQUEUE.Count > 0)
                 {
+                    //MessageBox.Show(DOWNLOADQUEUE.Count+"");
                     // TODO : already pending download process to download.
                     var item = DOWNLOADQUEUE.First();
-                //    MessageBox.Show("processfile" + localfolder + "\\" + item.dir + "\\" + item.filetempname);
-                    if (File.Exists(localfolder + "\\" + item.dir+"\\" + item.filetempname))
+
+                    //check the file is same which is trying to download
+
+                    LIVEFILES = GetlivefilesData();
+       
+
+                        // MessageBox.Show("processfile" + localfolder + "\\" + item.dir + "\\" + item.filetempname);
+                        if (File.Exists(localfolder + "\\" + item.dir+"\\" + item.filetempname) && LIVEFILES.ContainsKey(item.filemd5.Trim()))
                     {
                         
                         long length = new FileInfo(localfolder + "\\" + item.dir + "\\" + item.filetempname).Length;
                         long a = length / 1024;
-                     
+                    
                         item.startpoint = (a * 1024);
+                       
                         filecontroll.DownloadProgress.Value = (int)((100 * item.startpoint) / item.filesize);
 
                         dwm = new downloadManager();
@@ -231,20 +227,21 @@ namespace SyncUtil
                     files.AddRange(DirSearch(d));
                 }
             }
-            catch (System.Exception excpt)
+            catch (Exception ex)
             {
-              //  MessageBox.Show(excpt.Message);
+                Reset_On_Error(ex);
             }
 
             return files;
         }
-        private async  void createdownloadqueue()
+        private   void createdownloadqueue()
         {
             // stop timer so it can not intrupt on going process
             dispatcherTimer.Stop();
             // get local file dictionary.
 
-           
+            try
+            {
                 List<myfile> currentfiles = new List<myfile>();
 
                 List<String> fileEntries = DirSearch(localfolder);
@@ -254,21 +251,22 @@ namespace SyncUtil
                 foreach (string fileName in fileEntries)
                 {
                     FileInfo fi = new FileInfo(fileName);
-                
+
                     if (fi.Extension != ".part")
                     {
-                
+
                         myfile mf = new myfile();
                         mf.name = fi.Name;
                         mf.size = fi.Length;
 
                         mf.dir = System.IO.Path.GetDirectoryName(fileName);
-                     
+
                         mf.md5 = createmd5(fileName).ToLower();
-     
+
+
                         if (!LOCALFILES.ContainsKey(mf.md5))
                         {
-                   
+
                             LOCALFILES.Add(mf.md5, mf);
                         }
 
@@ -276,59 +274,35 @@ namespace SyncUtil
                     }
                     else if (fi.Extension == ".part")
                     {
-                        DOWNLOADPENDING.Add(fileName);
+                        DOWNLOADPENDING.Add(System.IO.Path.GetFileNameWithoutExtension(fi.Name));
                     }
                 }
 
-            // get live file dictionary.
-            List<myfile> lfs=null;
-            try
-            {
-              
-           
-                string livedata = await Getlivefiles();
-            lfs = JsonConvert.DeserializeObject<List<myfile>>(livedata).ToList<myfile>();
-            }
-              catch (Exception ex)
-            {
-             
-                LogError(ex);
-
-
-
-            }
-           
-
-                LIVEFILES = new Dictionary<string, myfile>();
-
-                foreach (myfile f in lfs)
-                {
-                 //   MessageBox.Show("live"+f.md5);
-                    LIVEFILES.Add(f.md5, f);
-                }
-
+                // get live file dictionary.
+               
+                LIVEFILES = GetlivefilesData();
                 // check both dictionary and manage downloadqueue.
 
                 foreach (String k in LOCALFILES.Keys)
                 {
-                            
+
                     var i = LIVEFILES.ContainsKey(k.Trim());
+                
                     if (!i)
                     {
                         var localitem = LOCALFILES[k];
-                        // delete item from local folder
-                        
-               
-                            if (File.Exists( localitem.dir + "\\" + localitem.name))
-                            {
-                                File.Delete(localitem.dir + "\\" + localitem.name);
-                      
+
+                    
+                        if (File.Exists(localitem.dir + "\\" + localitem.name))
+                        {
+                            File.Delete(localitem.dir + "\\" + localitem.name);
+                            showNotificationMessage(localitem.name + "removing...", 0);
+                        }
+                         LOCALFILES.Remove(k.Trim());
+                         LOCALFILES.Clear();
+
+
                     }
-                   // LOCALFILES.Remove(k.Trim());
-                    // LOCALFILES.Clear();
-
-
-                }
                 }
 
                 // cross checking of existing file to live files.
@@ -340,7 +314,7 @@ namespace SyncUtil
                     {
                         var item = LIVEFILES[k];
                         downloadfile df = new downloadfile(item.name, item.md5 + ".part", item.md5, item.size, 0, item.dir);
-                    //    MessageBox.Show("ex"+item.name + item.md5 + ".part" + item.dir);
+                    
                         myfile mf = new myfile();
                         mf.name = item.name;
                         mf.size = item.size;
@@ -351,11 +325,15 @@ namespace SyncUtil
                     }
                     else
                     {
-                        if (File.Exists(k))
-                        {
-                            File.Delete(k);
-                        }
-                       // deletefile(k + ".part");
+                        //TODO:delete the unwanted .partfiles
+                       // MessageBox.Show(k+"");
+                      //  var localitem = LOCALFILES[k];
+                       
+                      //  if (File.Exists(localfolder + "\\" + localitem.dir+"\\"+k + ".part"))
+                      //  {
+                      //      File.Delete(k + ".part");
+                      //  }
+                        // deletefile(k + ".part");
                     }
                     DOWNLOADPENDING.Remove(k);
                 }
@@ -367,76 +345,144 @@ namespace SyncUtil
                     if (!i)
                     {
                         var item = LIVEFILES[lv];
-                       
-                         
-                         if (!File.Exists(localfolder + "\\" + item.dir + "\\" + item.md5 + ".part"))
-                        {
-                           Directory.CreateDirectory(System.IO.Path.GetDirectoryName(localfolder + "\\" + item.dir + "\\" + item.md5 + ".part"));
 
-                          File.Create(localfolder + "\\" + item.dir  + "\\" + item.md5 + ".part").Close();
-                         }
+
+                        if (!File.Exists(localfolder + "\\" + item.dir + "\\" + item.md5 + ".part"))
+                        {
+                            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(localfolder + "\\" + item.dir + "\\" + item.md5 + ".part"));
+                    
+                            File.Create(localfolder + "\\" + item.dir + "\\" + item.md5 + ".part").Close();
+                        }
                         downloadfile df = new downloadfile(item.name, item.md5 + ".part", item.md5, item.size, 0, item.dir);
-                      //  MessageBox.Show("new" + item.name + item.md5 + ".part"  + item.dir);
+                        //  MessageBox.Show("new" + item.name + item.md5 + ".part"  + item.dir);
                         DOWNLOADQUEUE.Add(df);
                     }
                 }
                 dispatcherTimer.Start();
-           
+
+            }
+            catch (Exception ex)
+            {
+                Reset_On_Error(ex);
+         
+            }
         }
 
+        private Dictionary<string, myfile> GetlivefilesData()
+        {
+                 List<myfile> lfs = null;
+
+            try
+            {
 
 
-        private async Task<String> Getlivefiles()
+                string livedata = Getlivefiles();
+                lfs = JsonConvert.DeserializeObject<List<myfile>>(livedata).ToList<myfile>();
+            }
+            catch (Exception ex)
+            {
+                Reset_On_Error(ex);
+
+            }
+
+
+            LIVEFILES = new Dictionary<string, myfile>();
+
+            foreach (myfile f in lfs)
+            {
+
+
+                if (!LIVEFILES.ContainsKey(f.md5))
+                {
+
+                    LIVEFILES.Add(f.md5, f);
+                }
+
+
+            }
+
+            return LIVEFILES;
+        }
+
+        private void Reset_On_Error(Exception ex)
+        {
+            DOWNLOADQUEUE.Clear();
+            LOCALFILES.Clear();
+            LIVEFILES.Clear();
+            LogError(ex);
+            dispatcherTimer.Start();
+        }
+
+        private void showNotificationMessage(String msg,float per)
+        {
+            filecontroll.FileName.Text = msg;
+            filecontroll.DownloadProgress.Value =per;
+        }
+
+        private string Getlivefiles()
         {
 
             String result = string.Empty;
-            try { 
-
-            HttpWebRequest fileUrlRequest = (HttpWebRequest)WebRequest.Create(url);
-            WebResponse fileUrlResponse = await fileUrlRequest.GetResponseAsync();
-                using (Stream stream = fileUrlResponse.GetResponseStream())
+            try
             {
-                StreamReader reader = new StreamReader(stream, Encoding.UTF8);
-                result = await reader.ReadToEndAsync();
-            }
+                HttpWebRequest fileUrlRequest = (HttpWebRequest)WebRequest.Create(url);
+                var myHttpWebRequest = (HttpWebRequest)fileUrlRequest;
+                String username = "cacm";
+                String password = "onebook";
+                String encoded = System.Convert.ToBase64String(System.Text.Encoding.GetEncoding("ISO-8859-1").GetBytes(username + ":" + password));
+                myHttpWebRequest.Headers.Add("Authorization", "Basic " + encoded);
+
+                WebResponse fileUrlResponse = myHttpWebRequest.GetResponse();
+                using (Stream stream = fileUrlResponse.GetResponseStream())
+                {
+                    StreamReader reader = new StreamReader(stream, Encoding.UTF8);
+                    result = reader.ReadToEnd();
+                }
                 return result;
             }
             catch (WebException ex)
             {
-                dispatcherTimer.Start();
-                LogError(ex);
+                Reset_On_Error(ex);
+               
                 return null;
 
             }
-           
+
         }
 
-       
+
 
         private bool validatefile(downloadfile file)
         {
             bool isvalid = false;
-            if (File.Exists(localfolder + "\\" + file.dir + "\\" + file.filetempname))
+            string filename = localfolder + "\\" + file.dir + "\\" + file.filetempname;
+           // MessageBox.Show(file.filemd5 + "////" + createmd5(filename));
+            if (File.Exists(filename) &&(createmd5(filename)== file.filemd5))
             {
-                // create file md5 and chekc with live.
-                String localmd5 = createmd5(localfolder + "\\" + file.dir + "\\" + file.filetempname);
+       
                 isvalid = true;
             }
             return isvalid;
         }
-        MD5 hashAlgo = null;
-        private string createmd5(String f)
+
+        private string createmd5(String fname)
         {
             using (var md5 = MD5.Create())
             {
-                using (var stream = File.OpenRead(f))
+                using (var stream = File.OpenRead(fname))
                 {
-                    byte[] md5_bytes = md5.ComputeHash(stream);
-                    return BitConverter.ToString(md5_bytes).Replace("-", "").ToLower();
+                    byte[] hashBytes = md5.ComputeHash(stream);
+
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < hashBytes.Length; i++)
+                    {
+                        sb.Append(hashBytes[i].ToString("X2"));
+                    }
+                    return sb.ToString().ToLower();
                 }
             }
 
-         
+
         }
 
         private void renamefile(downloadfile file)
@@ -453,7 +499,8 @@ namespace SyncUtil
                 }
                 catch (Exception ex)
                 {
-                    throw ex;
+                   
+                    Reset_On_Error(ex);
                 }
             }
         }

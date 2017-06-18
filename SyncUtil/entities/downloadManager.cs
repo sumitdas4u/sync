@@ -66,13 +66,21 @@ namespace SyncUtil.entities
                 try
                 {
                     string localfolder = Properties.Settings.Default.path.ToString();
-                     System.Diagnostics.Debug.WriteLine(localfolder + "\\" + _file.dir + "\\" + _file.filetempname);
+                     System.Diagnostics.Debug.WriteLine(localfolder + "\\" + _file.dir + "\\" + _file.filename);
                     Directory.CreateDirectory(Path.GetDirectoryName(localfolder + "\\" + _file.dir + "\\" + _file.filetempname));
                     outFile = new FileStream(localfolder + "\\" + _file.dir + "\\" + _file.filetempname, FileMode.OpenOrCreate);
 
                     string fileUrl = "http://teamcacm.com/onebook/download.php?filename=" + _file.filemd5 + "&startpoint=" + _file.startpoint;
+
+
+
                     HttpWebRequest fileUrlRequest = (HttpWebRequest)WebRequest.Create(fileUrl);
-                    HttpWebResponse fileUrlResponse = (HttpWebResponse)fileUrlRequest.GetResponse();
+                    var myHttpWebRequest = (HttpWebRequest)fileUrlRequest;
+                    String username = "cacm";
+                    String password = "onebook";
+                    String encoded = System.Convert.ToBase64String(System.Text.Encoding.GetEncoding("ISO-8859-1").GetBytes(username + ":" + password));
+                    myHttpWebRequest.Headers.Add("Authorization", "Basic " + encoded);
+                    HttpWebResponse fileUrlResponse = (HttpWebResponse)myHttpWebRequest.GetResponse();
 
                     // we will read data via the response stream
                     Stream ReceiveStream = fileUrlResponse.GetResponseStream();
