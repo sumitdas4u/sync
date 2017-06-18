@@ -1,0 +1,42 @@
+﻿<Window x:Class="SyncUtil.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:SyncUtil"
+        xmlns:tb="http://www.hardcodet.net/taskbar"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="350" Width="525">
+    <Grid>
+        <tb:TaskbarIcon
+            Name="trayIcon"
+      IconSource="/images/syncicon.ico"
+      ToolTipText="hello world" >
+
+            <tb:TaskbarIcon.ContextMenu>
+                <ContextMenu Background="WhiteSmoke">
+                    <MenuItem Header="Exit" Click="Exit_Click" />
+                    <MenuItem Header="Settings" Click="Settings_Click" />
+                </ContextMenu>
+            </tb:TaskbarIcon.ContextMenu>
+            
+            <tb:TaskbarIcon.TrayToolTip>
+                <Border
+                  Background="White"
+                  BorderBrush="Orange"
+                  BorderThickness="2"
+                  CornerRadius="4"
+                  Opacity="0.8"
+                  Width="250"
+                  Height="71"
+                    
+                    >
+
+                    <local:progresscontroll x:Name="filecontroll"/>
+
+                </Border>
+            </tb:TaskbarIcon.TrayToolTip>
+            
+        </tb:TaskbarIcon>
+    </Grid>
+</Window>
