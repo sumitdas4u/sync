@@ -23,6 +23,7 @@ namespace SyncUtil
         public progresscontroll()
         {
             InitializeComponent();
+
         }
     }
 }

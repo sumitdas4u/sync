@@ -15,7 +15,7 @@ namespace SyncUtil.entities
         DOWNLOAD_PROGRESS = 40,
                 DOWNLOAD_DELETE = -1
     }
-
+  
     public class downloadEventArgs : EventArgs
     {
         public DownloadEvents Event { get; set; }

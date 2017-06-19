@@ -66,15 +66,16 @@ namespace SyncUtil.entities
                 try
                 {
                     string localfolder = Properties.Settings.Default.path.ToString();
-                     System.Diagnostics.Debug.WriteLine("downloading ??? "+localfolder + "\\" + _file.dir + "\\" + _file.filename);
+                   
+                    System.Diagnostics.Debug.WriteLine("downloading ??? "+localfolder + "\\" + _file.dir + "\\" + _file.filename);
                     Directory.CreateDirectory(Path.GetDirectoryName(localfolder + "\\" + _file.dir + "\\" + _file.filetempname));
                     outFile = new FileStream(localfolder + "\\" + _file.dir + "\\" + _file.filetempname, FileMode.OpenOrCreate);
 
-                    string fileUrl = "http://teamcacm.com/onebook/download.php?filename=" + _file.filemd5 + "&startpoint=" + _file.startpoint;
+                    string fileUrl = Properties.Settings.Default.SERVERURL.ToString()+"download.php?filename=" + _file.filemd5 + "&startpoint=" + _file.startpoint;
+                    Uri myUriDowload = new Uri(fileUrl, UriKind.Absolute);
 
 
-
-                    HttpWebRequest fileUrlRequest = (HttpWebRequest)WebRequest.Create(fileUrl);
+                    HttpWebRequest fileUrlRequest = (HttpWebRequest)WebRequest.Create(myUriDowload);
                     var myHttpWebRequest = (HttpWebRequest)fileUrlRequest;
                     String username = "cacm";
                     String password = "onebook";

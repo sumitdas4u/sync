@@ -3,7 +3,10 @@
   <Profiles />
   <Settings>
     <Setting Name="path" Type="System.String" Scope="User">
-      <Value Profile="(Default)">null</Value>
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="SERVERURL" Type="System.String" Scope="User">
+      <Value Profile="(Default)">http://45.55.79.54/</Value>
     </Setting>
   </Settings>
 </SettingsFile>

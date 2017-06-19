@@ -9,7 +9,8 @@
         Title="MainWindow" Height="350" Width="525">
     <Grid>
         <tb:TaskbarIcon
-            Name="trayIcon"
+             x:Name="MyNotifyIcon2"
+          
       IconSource="/images/syncicon.ico"
       ToolTipText="hello world" >
 
@@ -28,7 +29,7 @@
                   CornerRadius="4"
                   Opacity="0.8"
                   Width="250"
-                  Height="71"
+                  Height="121"
                     
                     >
 

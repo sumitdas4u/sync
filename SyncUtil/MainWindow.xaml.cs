@@ -12,6 +12,9 @@ using System.Windows.Threading;
 using System.Diagnostics;
 using Microsoft.Win32;
 using System.Security.Cryptography;
+using System.Net.NetworkInformation;
+using System.Windows.Controls;
+using System.Runtime.InteropServices;
 
 namespace SyncUtil
 {
@@ -28,9 +31,9 @@ namespace SyncUtil
         downloadManager dwm = new downloadManager();
 
 
-        private string url = "http://teamcacm.com/onebook/getfilelist.php";
+        private static string getFileUrl = Properties.Settings.Default.SERVERURL.ToString()+"getfilelist.php";
 
-    
+
         string localfolder = Properties.Settings.Default.path.ToString();
 
         DispatcherTimer dispatcherTimer = new DispatcherTimer();
@@ -54,13 +57,16 @@ namespace SyncUtil
                 registryKey.DeleteValue("ApplicationName");
             }
         }
+    
+      
         public MainWindow()
         {
             InitializeComponent();
             RegisterInStartup(true);
-           
+
+
             this.WindowState = WindowState.Minimized;
-            this.Visibility = Visibility.Hidden;
+           this.Visibility = Visibility.Hidden;
 
             dispatcherTimer.Tick += new EventHandler(timer_CheckLiveFiles);
             dispatcherTimer.Interval = new TimeSpan(0, 0, 5);
@@ -76,7 +82,7 @@ namespace SyncUtil
 
             filecontroll.FileName.Text = "waiting for file.";
             filecontroll.DownloadProgress.Value = 0;
-          
+
             checkfolder();
             processfile();
             dispatcherTimer.Start();
@@ -91,6 +97,7 @@ namespace SyncUtil
             }
             filecontroll.FileName.Text = "process interrupted,waiting for resume.";
             filecontroll.DownloadProgress.Value = 0;
+            DOWNLOADQUEUE.Remove(args.downloadFile);
         }
 
         private void Dwm_onFileDownloadStopped(object Sender, downloadEventArgs args)
@@ -101,6 +108,7 @@ namespace SyncUtil
                 return;
             }
             filecontroll.FileName.Text = args.downloadFile.filename;
+            DOWNLOADQUEUE.Remove(args.downloadFile);
         }
 
         private void Dwm_onFileDownloadProgress(object Sender, downloadEventArgs args)
@@ -115,18 +123,18 @@ namespace SyncUtil
 
         private void Dwm_onFileDownloadComplete(object Sender, downloadEventArgs args)
         {
+                     
             if (!Dispatcher.CheckAccess())
             {
                 Dispatcher.Invoke(new fileDownloadEventHandler(Dwm_onFileDownloadComplete), new object[] { Sender, args });
                 return;
             }
-            filecontroll.FileName.Text = "waiting for file.";
+            filecontroll.FileName.Text = "Validating file. " + args.downloadFile.filename;
             filecontroll.DownloadProgress.Value = 0;
             if (validatefile(args.downloadFile))
             {
                 renamefile(args.downloadFile);
 
-                DOWNLOADQUEUE.Remove(args.downloadFile);
             }
             else
             {
@@ -138,6 +146,11 @@ namespace SyncUtil
                 }
 
             }
+
+            DOWNLOADQUEUE.Remove(args.downloadFile);
+            dwm.isDownloading = false;
+            processfile();
+
         }
 
         private void Dwm_onFileDownloadStart(object Sender, downloadEventArgs args)
@@ -147,12 +160,28 @@ namespace SyncUtil
                 Dispatcher.Invoke(new fileDownloadEventHandler(Dwm_onFileDownloadStart), new object[] { Sender, args });
                 return;
             }
-            filecontroll.FileName.Text = "Download Start "+args.downloadFile.filename;
+            filecontroll.FileName.Text = "Download Start " + args.downloadFile.filename;
         }
 
         private void timer_CheckLiveFiles(object sender, EventArgs e)
         {
-            processfile();
+
+              
+            if (Properties.Settings.Default.path.ToString() == null || Properties.Settings.Default.path.ToString() == "" || Properties.Settings.Default.path.ToString() == "null")
+            {
+                showNotificationMessage("Please set the sync folder path", 0);
+             
+            }
+            else if (CheckForInternetConnection())
+            {
+                processfile();
+               //dispatcherTimer.Stop();
+            }
+            else
+            {
+                showNotificationMessage("SERVER Error", 0);
+            }
+
         }
 
         private void checkfolder()
@@ -162,42 +191,43 @@ namespace SyncUtil
             {
                 Directory.CreateDirectory(localfolder);
             }
-            //if (!File.Exists(dqfile))
-            //{
-            //    File.WriteAllText(dqfile, "[]");
-            //}
-            //if (!File.Exists(localfile))
-            //{
-            //    File.WriteAllText(localfile, "[]");
-            //}
+
         }
 
         private void processfile()
         {
+          //  MessageBox.Show("Process"+ dwm.isDownloading);
+         
             if (!dwm.isDownloading)
             {
+                filecontroll.pendingFileTxt.Text = "Pending :"+DOWNLOADQUEUE.Count.ToString();
+          
                 if (DOWNLOADQUEUE.Count > 0)
                 {
+                    dispatcherTimer.Stop();
                     //MessageBox.Show(DOWNLOADQUEUE.Count+"");
                     // TODO : already pending download process to download.
                     var item = DOWNLOADQUEUE.First();
 
                     //check the file is same which is trying to download
 
-                    LIVEFILES = GetlivefilesData();
-       
+             
 
-                        MessageBox.Show("processfile" + localfolder + "\\" + item.dir + "\\" + item.filetempname +"   " + LIVEFILES.ContainsKey(item.filemd5.Trim()));
-                        if (File.Exists(localfolder + "\\" + item.dir+"\\" + item.filetempname) && LIVEFILES.ContainsKey(item.filemd5.Trim()))
+
+                   // MessageBox.Show("processfile" + localfolder + "\\" + item.dir + "\\" + item.filetempname + "   " + LIVEFILES.ContainsKey(item.filemd5.Trim()));
+                    if (File.Exists(localfolder + "\\" + item.dir + "\\" + item.filetempname) && LIVEFILES.ContainsKey(item.filemd5.Trim()))
                     {
-                        
+
                         long length = new FileInfo(localfolder + "\\" + item.dir + "\\" + item.filetempname).Length;
                         long a = length / 1024;
-                    
-                        item.startpoint = (a * 1024);
-                       
-                        filecontroll.DownloadProgress.Value = (int)((100 * item.startpoint) / item.filesize);
 
+                        item.startpoint = (a * 1024);
+                        try
+                        {
+                            filecontroll.DownloadProgress.Value = (int)((100 * item.startpoint) / item.filesize);
+                        }
+                        catch { }
+                      
                         dwm = new downloadManager();
                         dwm.onFileDownloadStart += Dwm_onFileDownloadStart;
                         dwm.onFileDownloadComplete += Dwm_onFileDownloadComplete;
@@ -208,14 +238,16 @@ namespace SyncUtil
                     }
                     else
                     {
-                      //  MessageBox.Show("createdownload");
+                        //  MessageBox.Show("createdownload");
                         DOWNLOADQUEUE.Remove(item);
+                        dispatcherTimer.Start();
                         createdownloadqueue();
                     }
                 }
                 else
                 {
-                 // MessageBox.Show("createdownload");
+                    // MessageBox.Show("createdownload");
+                    dispatcherTimer.Start();
                     createdownloadqueue();
                 }
             }
@@ -241,15 +273,18 @@ namespace SyncUtil
 
             return files;
         }
-        private   void createdownloadqueue()
+        private void createdownloadqueue()
         {
+          
             // stop timer so it can not intrupt on going process
             dispatcherTimer.Stop();
             // get local file dictionary.
-
-            try
-           {
-                List<myfile> currentfiles = new List<myfile>();
+            showNotificationMessage("Dowloading File list", 0);
+            LIVEFILES = GetlivefilesData(); // get live files
+           
+             try
+             {
+            List<myfile> currentfiles = new List<myfile>();
 
                 List<String> fileEntries = DirSearch(localfolder);
 
@@ -284,29 +319,35 @@ namespace SyncUtil
                         DOWNLOADPENDING.Add(System.IO.Path.GetFileNameWithoutExtension(fi.Name));
                     }
                 }
+         
 
                 // get live file dictionary.
-               
-                LIVEFILES = GetlivefilesData();
+
+
+
                 // check both dictionary and manage downloadqueue.
 
                 foreach (String k in LOCALFILES.Keys.ToList())
                 {
 
                     var i = LIVEFILES.ContainsKey(k.Trim());
-                
+
                     if (!i)
                     {
                         var localitem = LOCALFILES[k];
 
-                    
+
                         if (File.Exists(localitem.dir + "\\" + localitem.name))
                         {
                             File.Delete(localitem.dir + "\\" + localitem.name);
-                            showNotificationMessage(localitem.name + "removing...", 0);
+                         bool isEmpty = !Directory.EnumerateFiles(localitem.dir).Any();
+                            if (isEmpty) { 
+                            Directory.Delete(localitem.dir, true);
+                            }
+                            showNotificationMessage(localitem.dir + "\\" + localitem.name + "removing... ", 0);
                         }
-                       //  LOCALFILES.Remove(k.Trim());
-                       //  LOCALFILES.Clear();
+                        //  LOCALFILES.Remove(k.Trim());
+                        //  LOCALFILES.Clear();
 
 
                     }
@@ -315,13 +356,14 @@ namespace SyncUtil
                 // cross checking of existing file to live files.
                 while (DOWNLOADPENDING.Count > 0)
                 {
-                    String k = DOWNLOADPENDING.First();
+                showNotificationMessage("Genarating Pending Download List", 0);
+                String k = DOWNLOADPENDING.First();
                     var i = LIVEFILES.ContainsKey(k);
                     if (i)
                     {
                         var item = LIVEFILES[k];
                         downloadfile df = new downloadfile(item.name, item.md5 + ".part", item.md5, item.size, 0, item.dir);
-                    
+
                         myfile mf = new myfile();
                         mf.name = item.name;
                         mf.size = item.size;
@@ -331,21 +373,21 @@ namespace SyncUtil
 
                             LOCALFILES.Add(mf.md5, mf);
                         }
-                       // LOCALFILES.Add(mf.md5, mf);
+                        // LOCALFILES.Add(mf.md5, mf);
 
                         DOWNLOADQUEUE.Add(df);
                     }
                     else
                     {
                         //TODO:delete the unwanted .partfiles
-                     
-                      var localFileList = DirSearch(localfolder);
-                      var match = localFileList.FirstOrDefault(stringToCheck => stringToCheck.Contains(k));
-                                             
-                         if (File.Exists(match))
-                         {
-                              File.Delete(match);
-                          }
+
+                        var localFileList = DirSearch(localfolder);
+                        var match = localFileList.FirstOrDefault(stringToCheck => stringToCheck.Contains(k));
+
+                        if (File.Exists(match))
+                        {
+                            File.Delete(match);
+                        }
                         // deletefile(k + ".part");
                     }
                     DOWNLOADPENDING.Remove(k);
@@ -354,16 +396,17 @@ namespace SyncUtil
                 // checking for new file
                 foreach (String lv in LIVEFILES.Keys)
                 {
+                 
                     var i = LOCALFILES.ContainsKey(lv);
                     if (!i)
                     {
                         var item = LIVEFILES[lv];
 
-
+                    
                         if (!File.Exists(localfolder + "\\" + item.dir + "\\" + item.md5 + ".part"))
                         {
                             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(localfolder + "\\" + item.dir + "\\" + item.md5 + ".part"));
-                    
+
                             File.Create(localfolder + "\\" + item.dir + "\\" + item.md5 + ".part").Close();
                         }
                         downloadfile df = new downloadfile(item.name, item.md5 + ".part", item.md5, item.size, 0, item.dir);
@@ -371,42 +414,45 @@ namespace SyncUtil
                         DOWNLOADQUEUE.Add(df);
                     }
                 }
-                dispatcherTimer.Start();
 
-           }
-            catch (Exception ex)
+            dispatcherTimer.Start();
+
+            }
+           catch (Exception ex)
            {
-                Reset_On_Error(ex);
-         
+               Reset_On_Error(ex);
+
             }
         }
 
         private Dictionary<string, myfile> GetlivefilesData()
         {
-                 List<myfile> lfs = null;
+            List<myfile> lfs = null;
 
             try
             {
 
 
                 string livedata = Getlivefiles();
+                if (livedata != null) { 
                 lfs = JsonConvert.DeserializeObject<List<myfile>>(livedata).ToList<myfile>();
-           
-
-            LIVEFILES = new Dictionary<string, myfile>();
-
-            foreach (myfile f in lfs)
-            {
 
 
-                if (!LIVEFILES.ContainsKey(f.md5))
+                LIVEFILES = new Dictionary<string, myfile>();
+
+                foreach (myfile f in lfs)
                 {
 
-                    LIVEFILES.Add(f.md5, f);
+
+                    if (!LIVEFILES.ContainsKey(f.md5))
+                    {
+
+                        LIVEFILES.Add(f.md5, f);
+                    }
+
+
                 }
-
-
-            }
+                }
             }
             catch (Exception ex)
             {
@@ -435,10 +481,10 @@ namespace SyncUtil
             dispatcherTimer.Start();
         }
 
-        private void showNotificationMessage(String msg,float per)
+        private void showNotificationMessage(String msg, float per)
         {
             filecontroll.FileName.Text = msg;
-            filecontroll.DownloadProgress.Value =per;
+            filecontroll.DownloadProgress.Value = per;
         }
 
         private string Getlivefiles()
@@ -447,8 +493,9 @@ namespace SyncUtil
             String result = string.Empty;
             try
             {
-                HttpWebRequest fileUrlRequest = (HttpWebRequest)WebRequest.Create(url);
-                var myHttpWebRequest = (HttpWebRequest)fileUrlRequest;
+                Uri myUriGetFileJson= new Uri(getFileUrl, UriKind.Absolute);
+                HttpWebRequest fileUrlRequest = (HttpWebRequest)WebRequest.Create(myUriGetFileJson);
+                var myHttpWebRequest = fileUrlRequest;
                 String username = "cacm";
                 String password = "onebook";
                 String encoded = System.Convert.ToBase64String(System.Text.Encoding.GetEncoding("ISO-8859-1").GetBytes(username + ":" + password));
@@ -464,8 +511,8 @@ namespace SyncUtil
             }
             catch (Exception ex)
             {
-                Reset_On_Error(ex);
-               
+                // Reset_On_Error(ex);
+                showNotificationMessage("Server Error", 0);
                 return null;
 
             }
@@ -478,10 +525,10 @@ namespace SyncUtil
         {
             bool isvalid = false;
             string filename = localfolder + "\\" + file.dir + "\\" + file.filetempname;
-           // MessageBox.Show(file.filemd5 + "////" + createmd5(filename));
-            if (File.Exists(filename) &&(createmd5(filename)== file.filemd5))
+            // MessageBox.Show(file.filemd5 + "////" + createmd5(filename));
+            if (File.Exists(filename) && (createmd5(filename) == file.filemd5))
             {
-       
+
                 isvalid = true;
             }
             return isvalid;
@@ -511,17 +558,17 @@ namespace SyncUtil
         {
             var filepath = localfolder + "\\" + file.dir + "\\" + file.filetempname;
             long length = new System.IO.FileInfo(filepath).Length;
-            if (File.Exists(filepath) & length>0)
+            if (File.Exists(filepath) & length > 0)
             {
                 try
-                              
+
                 {
-                
+
                     File.Move(localfolder + "\\" + file.dir + "\\" + file.filetempname, localfolder + "\\" + file.dir + "\\" + file.filename);
                 }
                 catch (Exception ex)
                 {
-                   
+
                     Reset_On_Error(ex);
                 }
             }
@@ -529,24 +576,26 @@ namespace SyncUtil
 
         private void LogError(Exception ex)
         {
-            string message = string.Format("Time: {0}", DateTime.Now.ToString("dd/MM/yyyy hh:mm:ss tt"));
-            message += Environment.NewLine;
-            message += "-----------------------------------------------------------";
-            message += Environment.NewLine;
-            message += string.Format("Message: {0}", ex.Message);
-            message += Environment.NewLine;
-            message += string.Format("Source: {0}", ex.Source);
-            message += Environment.NewLine;
-            message += "-----------------------------------------------------------";
-            message += Environment.NewLine;
 
-            string directory = AppDomain.CurrentDomain.BaseDirectory + "Errorlog.txt";
+            showNotificationMessage(ex.Message, 0);
+            //string message = string.Format());
+            //message += Environment.NewLine;
+            //message += "-----------------------------------------------------------";
+            //message += Environment.NewLine;
+            //message += string.Format("Message: {0}", ex.Message);
+            //message += Environment.NewLine;
+            //message += string.Format("Source: {0}", ex.Source);
+            //message += Environment.NewLine;
+            //message += "-----------------------------------------------------------";
+            //message += Environment.NewLine;
 
-            using (StreamWriter writer = new StreamWriter(directory, true))
-            {
-                writer.WriteLine(message);
-                writer.Close();
-            }
+            //string directory = AppDomain.CurrentDomain.BaseDirectory + "Errorlog.txt";
+
+            //using (StreamWriter writer = new StreamWriter(directory, true))
+            //{
+            //    writer.WriteLine(message);
+            //    writer.Close();
+            //}
         }
 
         private void Exit_Click(object sender, RoutedEventArgs e)
@@ -559,6 +608,18 @@ namespace SyncUtil
             sett win2 = new sett();
 
             win2.Show();
+
+        }
+        [DllImport("wininet.dll")]
+        private extern static bool InternetGetConnectedState(out int connDescription, int ReservedValue);
+        public  bool CheckForInternetConnection()
+        {
+          
+            int connDesc;
+            return InternetGetConnectedState(out connDesc, 0);
+
+
         }
     }
+
 }

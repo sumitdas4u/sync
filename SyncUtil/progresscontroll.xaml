@@ -5,11 +5,12 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:SyncUtil"
              mc:Ignorable="d" 
-             d:DesignHeight="70" Width="250">
+             d:DesignHeight="120" Width="250">
     <Grid HorizontalAlignment="Left" Width="250">
         <TextBlock x:Name="FileName" HorizontalAlignment="Left" Margin="10,10,0,0" TextWrapping="Wrap" Text="" VerticalAlignment="Top"/>
         <ProgressBar HorizontalAlignment="Left" Height="20"
                       Margin="10,40,0,0" VerticalAlignment="Top" Width="200" x:Name="DownloadProgress" RenderTransformOrigin="0.6,-2"/>
+        <TextBlock x:Name="pendingFileTxt" HorizontalAlignment="Left" Margin="10,70,0,0" TextWrapping="Wrap" Text="" VerticalAlignment="Top"/>
 
     </Grid>
 </UserControl>
